@@ -6,23 +6,36 @@
     "orientation": "portrait",
     "icon": "./assets/img/logo.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/img/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "이 앱은 카메라를 사용하여 사진을 찍습니다.",
+        "NSPhotoLibraryUsageDescription": "이 앱은 사진 라이브러리에서 사진을 선택합니다."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/img/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/img/favicon.png"
     },
-    "plugins": ["expo-font"]
+    "plugins": [
+      "expo-font",
+      "onnxruntime-react-native"
+    ]
   }
 }

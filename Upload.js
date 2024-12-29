@@ -1,278 +1,334 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
-  Alert,
-  Image,
-  StyleSheet,
-  ActivityIndicator,
   Text,
-  TextInput,
+  StyleSheet,
   TouchableOpacity,
+  TextInput,
+  Alert,
+  Dimensions,
+  Image,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import Icon from "react-native-vector-icons/FontAwesome";
+import { FontAwesome } from "@expo/vector-icons";
+import axios from "axios";
+import { useNavigation } from "@react-navigation/native";
+import useCustomFonts from "./Font";
 
-const Upload = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const {
-    imageUri = null,
-    foodName = "",
-    ratings = { delivery: 0, taste: 0, quantity: 0, price: 0 },
-  } = route.params || {};
+const { width, height } = Dimensions.get("window");
 
-  const [image, setImage] = useState(imageUri);
-  const [foodNameState, setFoodName] = useState(foodName);
-  const [ratingsState, setRatings] = useState(ratings);
+export default function Upload() {
+  const [imageUri, setImageUri] = useState(null);
+  const [foodName, setFoodName] = useState("");
+  const [deliveryRating, setDeliveryRating] = useState(null);
+  const [tasteRating, setTasteRating] = useState(null);
+  const [quantityRating, setQuantityRating] = useState(null);
+  const [priceRating, setPriceRating] = useState(null);
+  const [review, setReview] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const requestPermission = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("권한 요청", "이미지 선택을 위해 권한이 필요합니다.");
+  const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation();
+
+  const handleImageUpload = async () => {
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+
+    if (
+      permissionResult.granted === false ||
+      cameraPermission.granted === false
+    ) {
+      Alert.alert("권한이 필요합니다. 설정에서 권한을 부여해주세요.");
+      return;
     }
+
+    Alert.alert(
+      "이미지 선택",
+      "갤러리에서 선택하거나 카메라로 촬영할 수 있습니다.",
+      [
+        { text: "카메라 촬영", onPress: () => launchCamera() },
+        { text: "갤러리에서 선택", onPress: () => launchImageLibrary() },
+        { text: "취소", style: "cancel" },
+      ]
+    );
   };
 
-  useEffect(() => {
-    requestPermission();
-  }, []);
-
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  const launchCamera = async () => {
+    const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
-      aspect: [4, 3],
       quality: 1,
     });
 
-    if (!result.canceled) {
-      console.log("Selected Image URI:", result.assets[0].uri); // 선택된 이미지 URI 출력
-      setImage(result.assets[0].uri);
+    if (result.canceled) {
+      Alert.alert("카메라 촬영이 취소되었습니다.");
     } else {
-      Alert.alert("이미지 선택", "이미지가 선택되지 않았습니다.");
+      setImageUri(result.assets[0].uri);
     }
   };
 
-  const handleRating = (category, rating) => {
-    // 평점 카테고리를 영어로 통일
-    const categoryKey =
-      category === "배달"
-        ? "delivery"
-        : category === "맛"
-        ? "taste"
-        : category === "양"
-        ? "quantity"
-        : "price";
+  const launchImageLibrary = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaType: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
 
-    setRatings((prev) => ({ ...prev, [categoryKey]: rating }));
+    if (result.canceled) {
+      Alert.alert("이미지 선택이 취소되었습니다.");
+    } else {
+      setImageUri(result.assets[0].uri);
+    }
   };
-  const submitReview = async () => {
-    console.log("Food Name:", foodNameState);
-    console.log("Image URI:", image);
-    console.log("Ratings:", ratingsState);
-    if (!foodNameState.trim()) {
-      Alert.alert("입력 오류", "음식명을 입력해 주세요.");
-      return;
-    }
 
-    if (!image) {
-      Alert.alert("입력 오류", "이미지를 업로드해 주세요.");
-      return;
+  const handleStarClick = (ratingType, rating) => {
+    switch (ratingType) {
+      case "delivery":
+        setDeliveryRating(rating);
+        break;
+      case "taste":
+        setTasteRating(rating);
+        break;
+      case "quantity":
+        setQuantityRating(rating);
+        break;
+      case "price":
+        setPriceRating(rating);
+        break;
     }
+  };
 
-    if (Object.values(ratingsState).some((r) => r === 0)) {
-      Alert.alert("입력 오류", "모든 평점을 매겨 주세요.");
+  const renderStars = (ratingType, rating) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <TouchableOpacity
+          key={i}
+          onPress={() => handleStarClick(ratingType, i)}
+        >
+          <FontAwesome
+            name={i <= rating ? "star" : "star-o"}
+            size={30}
+            color={i <= rating ? "#FFD700" : "#BDBDBD"}
+          />
+        </TouchableOpacity>
+      );
+    }
+    return stars;
+  };
+
+  const handleSubmit = async () => {
+    if (
+      !imageUri ||
+      !foodName ||
+      !deliveryRating ||
+      !tasteRating ||
+      !quantityRating ||
+      !priceRating
+    ) {
+      Alert.alert("모든 항목을 입력해주세요.");
       return;
     }
 
     setLoading(true);
-    const review = await runModel(image);
-    setLoading(false);
-
-    navigation.navigate("Review", {
-      review,
-      foodName: foodNameState,
-      imageUri: image,
-      ratings: ratingsState,
-    });
-  };
-
-  const runModel = async (imageUri) => {
-    const formData = new FormData();
-    formData.append("food_name", foodNameState);
-    formData.append("delivery", ratingsState.delivery);
-    formData.append("taste", ratingsState.taste);
-    formData.append("quantity", ratingsState.quantity);
-    formData.append("price", ratingsState.price);
-    formData.append("image", {
-      uri: imageUri,
-      type: "image/jpeg",
-      name: "image.jpg",
-    });
-
-    console.log("FormData prepared:", formData); // 추가된 로그
 
     try {
-      const response = await fetch(
-        "http://192.168.219.108:8000/generate-review/",
+      const uri = imageUri;
+
+      const formData = new FormData();
+      formData.append("image", {
+        uri: uri,
+        type: "image/jpeg",
+        name: "image.jpg",
+      });
+      formData.append("foodName", foodName);
+      formData.append("deliveryRating", deliveryRating);
+      formData.append("tasteRating", tasteRating);
+      formData.append("quantityRating", quantityRating);
+      formData.append("priceRating", priceRating);
+
+      const prompt = `
+          메뉴: ${foodName}
+          평가:
+          - 배달: ${deliveryRating}점
+          - 맛: ${tasteRating}점
+          - 양: ${quantityRating}점
+          - 가격: ${priceRating}점
+
+          위 정보를 바탕으로 자연스럽고 진정성 있는 리뷰를 작성해주세요.`;
+
+      formData.append("prompt", prompt);
+
+      const response = await axios.post(
+        "http://192.168.219.101:5000/review", // ipconfig로 ip 주소 가져오기
+        formData,
         {
-          method: "POST",
-          body: formData,
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "알 수 없는 오류");
-      }
-      const data = await response.json();
-      console.log("Response data:", data); // 추가된 로그
+      const generatedReview = response.data.review;
+      setReview(generatedReview);
+      setLoading(false);
 
-      return data.review;
+      navigation.navigate("Review", {
+        review: generatedReview,
+        foodName: foodName,
+      });
     } catch (error) {
-      Alert.alert("오류", `모델 실행 중 오류가 발생했습니다: ${error.message}`);
-      console.error(error);
+      setLoading(false);
+      console.error("Error details:", error);
+      Alert.alert(
+        "리뷰 생성 실패",
+        "서비스 연결에 실패했습니다. 잠시 후 다시 시도해주세요."
+      );
     }
   };
+
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#007BFF" />
-          <Text style={styles.loadingText}>리뷰 작성 중...</Text>
+        <View style={styles.overlay}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.loadingText}>리뷰 작성중...</Text>
         </View>
       )}
 
-      <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-        {image ? (
-          <Image
-            source={{ uri: image }}
-            style={styles.image}
-            resizeMode="contain"
-          />
+      <Text style={styles.title}>리뷰 AI</Text>
+      <TouchableOpacity style={styles.uploadButton} onPress={handleImageUpload}>
+        {imageUri ? (
+          <Image source={{ uri: imageUri }} style={styles.imagePreview} />
         ) : (
-          <View style={styles.placeholder}>
-            <Icon name="upload" size={24} color="#A3A3A3" />
-            <Text style={styles.uploadText}>이미지 업로드</Text>
-            <Text style={styles.fileTypes}>JPG, JPEG, PNG</Text>
-          </View>
+          <FontAwesome name="camera" size={50} color="#BDBDBD" />
         )}
       </TouchableOpacity>
-
       <TextInput
-        placeholder="음식명을 입력하세요"
-        value={foodNameState}
-        onChangeText={setFoodName}
         style={styles.input}
+        placeholder="음식명을 입력해주세요"
+        value={foodName}
+        onChangeText={setFoodName}
       />
-
-      <View style={styles.ratingWrapper}>
-        {["배달", "맛", "양", "가격"].map((category) => (
-          <View key={category} style={styles.ratingRow}>
-            <Text>{category}</Text>
-            <View style={styles.ratingContainer}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity
-                  key={star}
-                  onPress={() => handleRating(category, star)}
-                >
-                  <Icon
-                    name="star"
-                    size={24}
-                    color={star <= ratingsState[category] ? "gold" : "#ccc"}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        ))}
+      <View style={styles.starContainer}>
+        <Text style={styles.starTitle}>배달</Text>
+        {renderStars("delivery", deliveryRating)}
       </View>
-
-      <TouchableOpacity style={styles.submitButton} onPress={submitReview}>
-        <Text style={styles.submitButtonText}>리뷰 작성하기</Text>
+      <View style={styles.starContainer}>
+        <Text style={styles.starTitle}>맛</Text>
+        {renderStars("taste", tasteRating)}
+      </View>
+      <View style={styles.starContainer}>
+        <Text style={styles.starTitle}>양</Text>
+        {renderStars("quantity", quantityRating)}
+      </View>
+      <View style={styles.starContainer}>
+        <Text style={styles.starTitle}>가격</Text>
+        {renderStars("price", priceRating)}
+      </View>
+      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+        <Text style={styles.buttonText}>리뷰 작성하기</Text>
       </TouchableOpacity>
     </View>
   );
-};
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: "center",
-    padding: 16,
+    justifyContent: "flex-start",
+    padding: width * 0.01,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#fff",
   },
-  loadingOverlay: {
+  overlay: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
     zIndex: 1,
   },
-  imagePicker: {
-    width: "100%",
-    height: "30%",
-    borderColor: "#ccc",
-    borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
+  loadingText: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "bold",
+    marginTop: 20,
+    fontFamily: "doyen",
   },
-  image: {
+  title: {
+    fontSize: height * 0.08,
+    fontWeight: "bold",
+    marginTop: height * 0.08,
+    marginBottom: height * 0.04,
+    fontFamily: "doyen",
+  },
+  input: {
+    width: "90%",
+    paddingVertical: height * 0.02,
+    backgroundColor: "#F1F1F1",
+    borderColor: "#BDBDBD",
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingLeft: 10,
+    marginBottom: height * 0.02,
+    fontFamily: "doyen",
+  },
+  starContainer: {
+    flexDirection: "row",
+    marginBottom: height * 0.02,
+    width: "90%",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  starTitle: {
+    fontSize: height * 0.025,
+    textAlign: "left",
+    marginRight: 10,
+    flex: 1,
+    fontFamily: "doyen",
+  },
+  submitButton: {
+    backgroundColor: "#000",
+    paddingVertical: height * 0.02,
+    borderRadius: 10,
+    width: "90%",
+    alignItems: "center",
+    marginTop: height * 0.01,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: height * 0.02,
+    fontFamily: "doyen",
+  },
+  uploadButton: {
+    backgroundColor: "#F1F1F1",
+    borderColor: "#BDBDBD",
+    borderWidth: 2,
+    height: height * 0.3,
+    width: "90%",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    marginBottom: height * 0.03,
+  },
+  imagePreview: {
     width: "100%",
     height: "100%",
     borderRadius: 8,
-  },
-  placeholder: {
-    justifyContent: "center",
-    alignItems: "center",
-    height: "100%",
-  },
-  uploadText: {
-    marginTop: 8,
-    fontSize: 16,
-    color: "#A3A3A3",
-  },
-  fileTypes: {
-    fontSize: 12,
-    color: "#A3A3A3",
-  },
-  input: {
-    width: "100%",
-    borderColor: "#ccc",
-    borderWidth: 1,
-    borderRadius: 4,
-    padding: 8,
-    marginBottom: 16,
-  },
-  ratingWrapper: {
-    width: "100%",
-    marginBottom: 16,
-  },
-  ratingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  ratingContainer: {
-    flexDirection: "row",
-  },
-  submitButton: {
-    backgroundColor: "#007BFF",
-    padding: 12,
-    borderRadius: 4,
-    width: "100%",
-    alignItems: "center",
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontSize: 16,
+    resizeMode: "cover",
   },
 });
-
-export default Upload;
