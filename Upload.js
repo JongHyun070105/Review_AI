@@ -128,6 +128,7 @@ const Upload = () => {
       }
       const data = await response.json();
       console.log("Response data:", data); // 추가된 로그
+
       return data.review;
     } catch (error) {
       Alert.alert("오류", `모델 실행 중 오류가 발생했습니다: ${error.message}`);
