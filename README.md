@@ -174,7 +174,7 @@ graph TD
         <br>React Native
       </td>
       <td align="center">
-        <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/huggingface/huggingface-original.svg" alt="huggingface" width="40" height="40"/>
+        <img src="https://cdn.worldvectorlogo.com/logos/huggingface-2.svg" alt="huggingface" width="40" height="40"/>
         <br>Hugging Face
       </td>
       <td align="center">
